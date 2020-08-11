@@ -1,0 +1,181 @@
+---
+- name: Transfer and execute a script.
+  hosts: servers
+  remote_user: labs
+  become: yes
+  tasks:
+     - name: creates directory
+       file: path=/usr/localcw/bin/ state=directory recurse=yes
+
+
+     - name: Transfer ATTsendmail script
+       copy: src=/home/labs/sectools/ATTSendmail-RH_Adv_Srv6.0-8.14.5.x86_64.rpm  dest=/usr/localcw/bin/ mode=0755
+     - name: Install ATTsendmail
+       yum: name=/usr/localcw/bin/ATTSendmail-RH_Adv_Srv6.0-8.14.5.x86_64.rpm  state=present
+       register: ATTsendmailResult
+       ignore_errors: True
+     - debug: var=ATTsendmailResult
+
+
+     - name: Transfer the Allmid script
+       copy: src=/home/labs/sectools/allmid.sh dest=/usr/localcw/bin/  mode=0755
+     - name: Start sendmail
+       service: name=sendmail state=started
+     - name: turn sendmail on at boot
+       service: name=sendmail enabled=yes
+     - name: Execute the script
+       command: chdir=/usr/localcw/bin/ sh /usr/localcw/bin/allmid.sh
+       register: allmidResult
+       ignore_errors: True
+     - debug: var=allmidResult.stdout
+
+
+     - name: Transfer ATTlogins script
+       copy: src=/home/labs/sectools/att_logins dest=/usr/localcw/bin/ mode=0755
+     - name: Execute ATTlogins script
+       command: /usr/localcw/bin/att_logins
+       register: AttloginsResult
+       ignore_errors: True
+     - debug: var=AttloginsResult.stdout
+
+     - name: Transfer ATTnologin script
+       copy: src=/home/labs/sectools/ATTnologin-5.0.2-3.el6.x86_64.rpm  dest=/usr/localcw/bin/ mode=0755
+     - name: Execute ATTnologin script
+       yum: name=/usr/localcw/bin/ATTnologin-5.0.2-3.el6.x86_64.rpm state=present
+       register: ATTnologinResult
+       ignore_errors: True
+     - debug: var=ATTnologinResult
+
+     - name: Transfer eksh script
+       copy: src=/home/labs/sectools/setup_eksh.sh  dest=/usr/localcw/bin/ mode=0755
+     - name: Execute eksh script
+       command: sh /usr/localcw/bin/setup_eksh.sh
+       register: ekshResult
+       ignore_errors: True
+     - debug: var=ekshResult
+
+
+     - name: creates directory
+     file: path=/usr/localcw/sbin/ state=directory recurse=yes
+     - name: Transfer Cron_nologin script
+       copy: src=/home/labs/sectools/cron_nologin dest=/usr/localcw/sbin/ mode=0755
+       ignore_errors: True
+
+     - name: Copy cron_np
+       copy: src=/home/labs/sectools/cron_np dest=/usr/localcw/sbin mode=0755
+
+
+     - name: Transfer ATTpamradius script
+       copy: src=/home/labs/sectools/pam_radius_auth-1.3.17-8.el6.x86_64.rpm dest=/usr/localcw/bin/ mode=0755
+     - name: Execute ATTpamradius script
+       yum: name=/usr/localcw/bin/pam_radius_auth-1.3.17-8.el6.x86_64.rpm state=present
+       register: ATTpamradiusResult
+       ignore_errors: True
+     - debug: var=ATTpamradiusResult
+
+
+     - name: Transfer sensage/hawkeye script
+       copy: src=/home/labs/sectools/configure_sensage dest=/usr/localcw/bin mode=0755
+     - name: Execute sensage script
+       command: "{{item}}"
+       with_items:
+         - cp -p /etc/rsyslog.conf /etc/rsyslog.conf.ORIG
+         - cp -Rp /etc/rsyslog.d /etc/rsyslog.d.ORIG
+     - script: configure_sensage -v -c loghost01.edc.cingular.net
+       register: sensageResult
+       ignore_errors: True
+     - debug: var=sensageResult
+     - name: copy rsyslogfile to remote server
+       copy: src=rsyslogfile dest=/tmp/
+     - name: change the file mode
+       file: path=/etc/rsyslog.conf mode=0600
+     - name: apppend rsyslogfile
+       copy: remote_src=True src=/tmp/rsyslogfile dest=/etc/rsyslog.conf
+     - name: Restart rsyslog
+       service: name=rsyslog state=restarted
+     - name: turn rsyslog on at boot
+       service: name=rsyslog enabled=yes
+
+
+
+     - name: creates directory
+       file: path=/usr/localcw/opt/security/etc  state=directory mode=0755 recurse=yes
+     - name: creates sact directory
+       file: path=/usr/localcw/opt/sact  state=directory mode=0755 recurse=yes
+     - name: creates file
+       file: path=/usr/localcw/opt/security/etc/sectools.conf mode=0755
+     - name: Transfer sact file
+       copy: src=/home/labs/sectools/sact-client-20160801.tar.gz dest=/usr/localcw mode=0755
+     - name: Execute sact script
+       command: "{{item}}"
+       with_items:
+           - tar -xvf /usr/localcw/sact-client-20160801.tar.gz -C /usr/localcw/opt/sact
+           - rm -f /usr/localcw/opt/security/tmp/sact.pid
+           - sh /usr/localcw/opt/sact/ush_security_audit.ksh -u
+           - sh /usr/localcw/opt/sact/add2cron.ksh -l
+    
+       register: sactResult
+       ignore_errors: True
+     - debug: var=sactResult
+
+
+
+
+     - name: Transfer ATTsudo script
+       copy: src=/home/labs/sectools/install_sudo.sh  dest=/usr/localcw/bin mode=0755
+     - name: Execute ATTsudo script
+       command: sh /usr/localcw/bin/install_sudo.sh
+       register: ATTsudoResult
+       ignore_errors: True
+     - debug: var=ATTsudoResult
+
+     - name: Transfer UAM script
+       copy: src=/home/labs/sectools/uam_extranet.tar.z dest=/tmp/
+     - name: Execute UAM script
+       command: "{{item}}"
+       with_items:
+             - tar -xvf /tmp/uam_extranet.tar.z -C /
+             - sh /usr/localcw/uam/install_uam.sh -l
+             - cp /usr/localcw/uam/query/UAM.conf /etc/SBC/UAM.conf
+       register: UamResult
+       ignore_errors: True
+     - debug: var=UamResult
+
+
+     - name: Transfer AutoSRM script
+       copy: src=/home/labs/sectools/extranet-srm.tar  dest=/tmp/
+     - name: Execute AutoSRM script
+       command: "{{item}}"
+       with_items:
+             - tar -xvf /tmp/extranet-srm.tar -C /
+             - ksh /usr/localcw/AutoSRM/auto_srm.ksh
+       register: AutoSRMResult
+       ignore_errors: True
+     - debug: var=AutoSRMResult
+
+
+     - name: Transfer XPW script
+       copy: src=/home/labs/sectools/xpw_add_id_v1.30.sh dest=/usr/localcw/bin/ mode=0755
+     - lineinfile: dest=/etc/sudoers line="#includedir /usr/localcw/opt/sudo/sudoers.d" insertafter="includedir /etc/sudoers.d"
+
+     - name: Execute XPW script
+       command: chdir=/usr/localcw/bin/   /usr/localcw/bin/xpw_add_id_v1.30.sh
+       register: XPWResult
+       ignore_errors: True
+     - debug: var=XPWResult
+
+     - name: Transfer McAFEE AV script
+       copy: src=/home/labs/sectools/McAfee-RedHat-192.tar.gz dest=/usr/localcw/ mode=0755
+     - name: create uvscan directory
+       file: path=/usr/localcw/uvscan  state=directory mode=0755 recurse=yes
+      - name: Execute McAFEE AV script
+       command: "{{item}}"
+       with_items:
+             - tar -xvf /usr/localcw/McAfee-RedHat-192.tar.gz -C /usr/localcw/uvscan
+             - chmod 755 /usr/localcw/uvscan/McAfee-RedHat-192/McAfee-install.ksh
+
+     - name: go to the folder and execute command
+       command: chdir=/usr/localcw/uvscan/McAfee-RedHat-192/  ksh /usr/localcw/uvscan/McAfee-RedHat-192/McAfee-install.ksh
+       register: McAfeeResult
+       ignore_errors: True
+     - debug: var=McAfeeResult
